@@ -1,38 +1,42 @@
-﻿class Program
+﻿using Polly;
+using System;
+
+class Program
 {
     static async Task Main(string[] args)
     {
-        // URL of the API endpoint
         string url = "https://localhost:7049/WeatherForecast/Error";
 
-        // Create an instance of HttpClient
-        using (HttpClient client = new HttpClient())
-        {
-            for (int i = 0; i < 9; i++)
-            {
-                try
+        var retryPolicyWithIncreaseTime = Policy
+            .Handle<HttpRequestException>()
+            .WaitAndRetryAsync(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                (exception, timeSpan, retryCount, context) =>
                 {
-                    // Send a GET request
-                    HttpResponseMessage response = await client.GetAsync(url);
+                    Console.WriteLine($"Retry {retryCount} encountered an error: {exception.Message}. Waiting {timeSpan} before next retry.");
+                });
 
-                    // Check if the request was successful
-                    if (response.IsSuccessStatusCode)
-                    {
-                        // Read the response content
-                        string responseData = await response.Content.ReadAsStringAsync();
-                        Console.WriteLine("Response Data:");
-                        Console.WriteLine(responseData);
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Error: {response.StatusCode}");
-                    }
-                }
-                catch (Exception ex)
+        var retryPolicy = Policy
+            .Handle<HttpRequestException>()
+            .WaitAndRetryAsync(3, seconds => TimeSpan.FromSeconds(2),
+                (exception, timeSpan, retryCount, context) =>
                 {
-                    Console.WriteLine($"Exception: {ex.Message}");
-                }
-            }
-        }
+                    Console.WriteLine($"Retry {retryCount} encountered an error: {exception.Message}. Waiting {timeSpan} before next retry.");
+                });
+
+        var httpClient = new HttpClient();
+
+        await retryPolicyWithIncreaseTime.ExecuteAsync(async () =>
+        {
+            var response = await httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            Console.WriteLine("Request successful!");
+        });
+
+        await retryPolicy.ExecuteAsync(async () =>
+        {
+            var response = await httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            Console.WriteLine("Request successful!");
+        });
     }
 }

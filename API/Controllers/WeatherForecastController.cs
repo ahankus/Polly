@@ -26,7 +26,7 @@ namespace API.Controllers
             _errorRequestCount++;
 
             // Return 500 Internal Server Error for the first 3 requests
-            if (_errorRequestCount % 3 == 0)
+            if (_errorRequestCount % 4 == 0)
             {
                 return StatusCode((int)HttpStatusCode.OK, "OK");
             }
